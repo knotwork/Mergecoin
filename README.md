@@ -1,3 +1,22 @@
+==========================================================
+Mergedcoin: Template repo, bitcoin + merged mining patches
+==========================================================
+
+This repo exists to hold bitcoin with the merged mining
+patches applied.
+
+All merged mined coins based on bitcoin can use this
+instead of raw bitcoin as the template from which to
+create their own new version that has all the goodies
+inherited from bitcoin.
+
+They all need the merged mining, hence this repo. From
+this they then can apply the usually trivial changes that
+make them different from bitcoin adn from each other.
+
+-MarkM- (aka knotwork)
+
+================================
 Bitcoin integration/staging tree
 ================================
 
