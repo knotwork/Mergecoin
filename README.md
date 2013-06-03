@@ -1,6 +1,6 @@
-==========================================================
-Mergedcoin: Template repo, bitcoin + merged mining patches
-==========================================================
+===========================================
+Mergedcoin: bitcoin + merged mining patches
+===========================================
 
 This repo exists to hold bitcoin with the merged mining
 patches applied.

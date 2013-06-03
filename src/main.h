@@ -11,6 +11,7 @@
 #include "script.h"
 
 #include <list>
+#include <boost/shared_ptr.hpp>
 
 class CWallet;
 class CBlock;
@@ -21,6 +22,8 @@ class CReserveKey;
 class CAddress;
 class CInv;
 class CNode;
+class CBlockIndex;
+class CAuxPow;
 
 struct CBlockIndexWorkComparator;
 
@@ -59,13 +62,7 @@ static const int fHaveUPnP = true;
 static const int fHaveUPnP = false;
 #endif
 
-
 extern CScript COINBASE_FLAGS;
-
-
-
-
-
 
 extern CCriticalSection cs_main;
 extern std::map<uint256, CBlockIndex*> mapBlockIndex;
@@ -181,16 +178,6 @@ CBlockIndex * InsertBlockIndex(uint256 hash);
 bool VerifySignature(const CCoins& txFrom, const CTransaction& txTo, unsigned int nIn, unsigned int flags, int nHashType);
 /** Abort with a message */
 bool AbortNode(const std::string &msg);
-
-
-
-
-
-
-
-
-
-
 
 bool GetWalletFile(CWallet* pwallet, std::string &strWalletFileOut);
 
@@ -1148,9 +1135,28 @@ public:
     bool AcceptToMemoryPool(bool fCheckInputs=true, bool fLimitFree=true);
 };
 
+template <typename Stream>
+int ReadWriteAuxPow(Stream& s, const boost::shared_ptr<CAuxPow>& auxpow, int nType, int nVersion, CSerActionSerialize ser_action);
 
+template <typename Stream>
+int ReadWriteAuxPow(Stream& s, boost::shared_ptr<CAuxPow>& auxpow, int nType, int nVersion, CSerActionUnserialize ser_action);
 
+template <typename Stream>
+int ReadWriteAuxPow(Stream& s, const boost::shared_ptr<CAuxPow>& auxpow, int nType, int nVersion, CSerActionGetSerializeSize ser_action);
 
+enum
+{
+    // primary version
+    BLOCK_VERSION_DEFAULT        = (1 << 0),
+
+    // modifiers
+    BLOCK_VERSION_AUXPOW         = (1 << 8),
+
+    // bits allocated for chain ID
+    BLOCK_VERSION_CHAIN_START    = (1 << 16),
+    BLOCK_VERSION_CHAIN_END      = (1 << 30),
+};
+ 
 
 /** Data structure that represents a partial merkle tree.
  *
@@ -1318,6 +1324,9 @@ public:
     // network and disk
     std::vector<CTransaction> vtx;
 
+    // header
+    boost::shared_ptr<CAuxPow> auxpow;
+
     // memory only
     mutable std::vector<uint256> vMerkleTree;
 
@@ -1457,7 +1466,7 @@ public:
         }
 
         // Check the header
-        if (!CheckProofOfWork(GetHash(), nBits))
+        if (!CheckProofOfWork(INT_MAX))
             return error("CBlock::ReadFromDisk() : errors in block header");
 
         return true;
@@ -1634,7 +1643,9 @@ public:
     unsigned int nBits;
     unsigned int nNonce;
 
-
+    // if this is an aux work block
+    boost::shared_ptr<CAuxPow> auxpow;
+ 
     CBlockIndex()
     {
         phashBlock = NULL;
@@ -1653,6 +1664,7 @@ public:
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
+        auxpow.reset();
     }
 
     CBlockIndex(CBlockHeader& block)
@@ -1673,6 +1685,7 @@ public:
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
+        auxpow         = block.auxpow;
     }
 
     CDiskBlockPos GetBlockPos() const {
@@ -1703,6 +1716,7 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
+        block.auxpow         = auxpow;
         return block;
     }
 
@@ -1734,10 +1748,7 @@ public:
         return nHeight+1 >= (int)vBlockIndexByHeight.size() ? NULL : vBlockIndexByHeight[nHeight+1];
     }
 
-    bool CheckIndex() const
-    {
-        return CheckProofOfWork(GetBlockHash(), nBits);
-    }
+    bool CheckIndex() const;
 
     enum { nMedianTimeSpan=11 };
 
@@ -1839,6 +1850,7 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+        ReadWriteAuxPow(s, auxpow, nType, this->nVersion, ser_action);
     )
 
     uint256 GetBlockHash() const
